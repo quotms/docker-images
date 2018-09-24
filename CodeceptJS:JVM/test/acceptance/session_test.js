@@ -1,0 +1,149 @@
+const assert = require('assert');
+
+Feature('Session');
+
+Scenario('simple session @WebDriverIO @Protractor @Puppeteer', (I) => {
+  I.amOnPage('/info');
+  session('john', () => {
+    I.amOnPage('https://github.com');
+    I.dontSeeInCurrentUrl('/info');
+    I.see('GitHub');
+  });
+  I.dontSee('GitHub');
+  I.seeInCurrentUrl('/info');
+});
+
+Scenario('Different cookies for different sessions @WebDriverIO @Protractor @Puppeteer', async (I) => {
+  const cookiePage = 'https://www.microsoft.com/en-au/';
+  const cookieName = 'MUID';
+  const cookies = {};
+
+  I.amOnPage(cookiePage);
+  session('john', () => {
+    I.amOnPage(cookiePage);
+  });
+  session('mary', () => {
+    I.amOnPage(cookiePage);
+  });
+
+  cookies.default = (await I.grabCookie(cookieName)).value;
+  I.say(`${cookieName}: ${cookies.default}`);
+  session('john', async () => {
+    cookies.john = (await I.grabCookie(cookieName)).value;
+    I.say(`${cookieName}: ${cookies.john}`);
+  });
+  session('mary', async () => {
+    cookies.mary = (await I.grabCookie(cookieName)).value;
+    I.say(`${cookieName}: ${cookies.mary}`);
+  });
+  await I.seeInCurrentUrl('en-au');
+  assert(cookies.default);
+  assert(cookies.john);
+  assert(cookies.mary);
+  assert.notEqual(cookies.default, cookies.john);
+  assert.notEqual(cookies.default, cookies.mary);
+  assert.notEqual(cookies.john, cookies.mary);
+});
+
+Scenario('should throw exception and close correctly @WebDriverIO @Protractor @Puppeteer', (I) => {
+  I.amOnPage('/form/bug1467#session1');
+  I.checkOption('Yes');
+  session('john', () => {
+    I.amOnPage('/form/bug1467#session2');
+    I.checkOption('No1');
+    I.seeCheckboxIsChecked({ css: 'input[value=No]' });
+  });
+  I.seeCheckboxIsChecked({ css: 'input[value=Yes]' });
+}).fails();
+
+Scenario('async/await @WebDriverIO @Protractor', (I) => {
+  I.amOnPage('/form/bug1467#session1');
+  I.checkOption('Yes');
+  session('john', async () => {
+    I.amOnPage('/form/bug1467#session2');
+    I.checkOption('No');
+    I.seeCheckboxIsChecked({ css: 'input[value=No]' });
+  });
+  I.seeCheckboxIsChecked({ css: 'input[value=Yes]' });
+});
+
+Scenario('exception on async/await @WebDriverIO @Protractor @Puppeteer', (I) => {
+  I.amOnPage('/form/bug1467#session1');
+  I.checkOption('Yes');
+  session('john', async () => {
+    I.amOnPage('/form/bug1467#session2');
+    I.checkOption('No');
+    I.seeCheckboxIsChecked({ css: 'input[value=Yes]' });
+  });
+  I.seeCheckboxIsChecked({ css: 'input[value=Yes]' });
+}).throws(/to be checked/);
+
+Scenario('should work with within @WebDriverIO @Protractor @Puppeteer', (I) => {
+  I.amOnPage('/form/bug1467');
+  session('john', () => {
+    I.amOnPage('/form/bug1467');
+    within({ css: '[name=form1]' }, () => {
+      I.checkOption('Yes');
+      I.seeCheckboxIsChecked({ css: 'input[name=first_test_radio]' });
+    });
+  });
+  within({ css: '[name=form2]' }, () => {
+    I.checkOption('Yes');
+    I.seeCheckboxIsChecked({ css: 'input[name=first_test_radio]' });
+  });
+  I.seeCheckboxIsChecked({ css: 'form[name=form2] input[name=first_test_radio]' });
+  I.dontSeeCheckboxIsChecked({ css: 'form[name=form1] input[name=first_test_radio]' });
+  session('john', () => {
+    I.seeCheckboxIsChecked({ css: 'form[name=form1] input[name=first_test_radio]' });
+    I.dontSeeCheckboxIsChecked({ css: 'form[name=form2] input[name=first_test_radio]' });
+  });
+});
+
+xScenario('should use different base URL @Protractor @Puppeteer', (I) => { // nah, that's broken
+  I.amOnPage('/');
+  I.see('Welcome to test app');
+  session('john', { url: 'https://github.com' }, () => {
+    I.amOnPage('/');
+    I.dontSee('Welcome to test app');
+    I.see('GitHub');
+  });
+  I.see('Welcome to test app');
+});
+
+xScenario('should start firefox', async (I) => { // requires firefox :)
+  I.amOnPage('/form/bug1467#session1');
+  I.checkOption('Yes');
+  session('john', { browser: 'firefox' }, async () => {
+    I.amOnPage('/form/bug1467#session2');
+    I.checkOption('No');
+    I.seeCheckboxIsChecked({ css: 'input[value=No]' });
+    const isChrome = await I.executeScript(() => !!window.chrome);
+    assert(!isChrome);
+  });
+  I.seeCheckboxIsChecked({ css: 'input[value=Yes]' });
+  const isChrome = await I.executeScript(() => !!window.chrome);
+  assert(isChrome);
+});
+
+Scenario('should return a value in @WebDriverIO @Protractor @Puppeteer', async (I) => {
+  I.amOnPage('/form/textarea');
+  const val = await session('john', () => {
+    I.amOnPage('/info');
+    return I.grabTextFrom({ css: 'h1' });
+  });
+  I.fillField('Description', val);
+  I.click('Submit');
+  I.see('[description] => Information');
+});
+
+
+Scenario('should return a value @WebDriverIO @Protractor @Puppeteer in async', async (I) => {
+  I.amOnPage('/form/textarea');
+  const val = await session('john', async () => {
+    I.amOnPage('/info');
+    return I.grabTextFrom({ css: 'h1' });
+  });
+  I.fillField('Description', val);
+  I.click('Submit');
+  I.see('[description] => Information');
+});
