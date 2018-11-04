@@ -1,1 +1,1 @@
-# docker-images
+CodeceptJS docker image with JVM
